@@ -76,8 +76,10 @@ class SecureChatServer:
         """Receive JSON message from client."""
         try:
             # Receive length prefix (4 bytes)
+            print(f"[DEBUG] Receiving length prefix...")
             length_bytes = self._receive_exact(conn, 4)
             if not length_bytes:
+                print(f"[DEBUG] No length bytes received")
                 return None
             
             length = int.from_bytes(length_bytes, 'big')
@@ -421,7 +423,8 @@ class SecureChatServer:
     def _handle_client(self, conn: socket.socket, addr: tuple):
         """Handle individual client connection."""
         client_id = f"{addr[0]}:{addr[1]}"
-        print(f"New client connected: {client_id}")
+        print(f"[CONNECTION] New client connected: {client_id}")
+        print(f"[DEBUG] Connection from {addr[0]}:{addr[1]} established")
         
         # Initialize connection state
         conn_state = {
@@ -440,11 +443,15 @@ class SecureChatServer:
         
         try:
             while True:
+                print(f"[DEBUG] {client_id} - Waiting for message...")
                 message = self._receive_message(conn)
                 if not message:
+                    print(f"[DEBUG] {client_id} - No message received, breaking")
                     break
                 
+                print(f"[DEBUG] {client_id} - Received message: {message}")
                 msg_type = message.get('type')
+                print(f"[DEBUG] {client_id} - Message type: {msg_type}")
                 
                 if msg_type == 'hello':
                     if not self._handle_hello(conn, message, conn_state):
