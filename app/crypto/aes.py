@@ -73,8 +73,6 @@ def aes_decrypt_to_string(ciphertext: bytes, key: bytes) -> str:
         
     Returns:
         Decrypted plaintext as string
-        
     """
     plaintext_bytes = aes_decrypt(ciphertext, key)
     return plaintext_bytes.decode('utf-8')
-
