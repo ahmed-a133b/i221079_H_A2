@@ -1,0 +1,10 @@
+ • Invalid certificate test: forged/self-signed/expired certs → BAD
+ CERT.
+ • Tampering test: flip a bit in ct → recomputed digest/signature fails → SIG
+ • Replay test: resend old seqno → REPLAY.
+ FAIL.
+ 
+• Non-repudiation: export transcript & SessionReceipt; show offline verification:
+ 1. Verify each message: recompute SHA-256 digest; verify RSA signature.
+ 2. Verify receipt: verify RSA signature over TranscriptHash.
+ 3. Show that any edit breaks verification.
