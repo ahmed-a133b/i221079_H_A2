@@ -52,7 +52,7 @@ class SecurityTester:
         
         # Test 1a: Valid certificate (should pass)
         try:
-            validate_certificate_chain(server_cert_pem, ca_cert_pem, "server")
+            validate_certificate_chain(server_cert_pem, ca_cert_pem, "server.local")
             print("✓ Valid certificate: PASSED")
         except CertificateValidationError as e:
             print(f"✗ Valid certificate test failed: {e}")
@@ -60,7 +60,7 @@ class SecurityTester:
         # Test 1b: Self-signed certificate (should fail)
         print("\n--- Testing self-signed certificate ---")
         try:
-            validate_certificate_chain(server_cert_pem, server_cert_pem, "server")
+            validate_certificate_chain(server_cert_pem, server_cert_pem, "server.local")
             print("✗ Self-signed certificate: Should have failed but passed!")
         except CertificateValidationError as e:
             print(f"✓ Self-signed certificate rejected: {e}")
@@ -69,7 +69,7 @@ class SecurityTester:
         print("\n--- Testing forged certificate ---")
         forged_cert = self.create_forged_certificate()
         try:
-            validate_certificate_chain(forged_cert, ca_cert_pem, "server")
+            validate_certificate_chain(forged_cert, ca_cert_pem, "server.local")
             print("✗ Forged certificate: Should have failed but passed!")
         except CertificateValidationError as e:
             print(f"✓ Forged certificate rejected: {e}")

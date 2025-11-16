@@ -44,6 +44,12 @@ class SecureChatServer:
         # Active connections
         self.active_connections: Dict[str, Dict[str, Any]] = {}
         
+        # Global sequence tracking (persistent across connections)
+        self.used_sequences: set = set()
+        
+        # Connection nonces (prevent replay of handshake)
+        self.used_nonces: set = set()
+        
     def _load_file(self, filepath: str) -> str:
         """Load file content."""
         try:
@@ -103,6 +109,21 @@ class SecureChatServer:
         """Handle client hello message."""
         try:
             hello = HelloMessage(**message)
+            
+            # Check for nonce replay (prevent handshake replay)
+            client_nonce = getattr(hello, 'nonce', None)
+            if client_nonce and client_nonce in self.used_nonces:
+                print(f"[SECURITY] HANDSHAKE REPLAY DETECTED: nonce={client_nonce}")
+                self._send_message(conn, {
+                    "type": "status", 
+                    "status": "replay",
+                    "message": "Handshake replay detected - nonce reuse"
+                })
+                return False
+            
+            # Add nonce to used set
+            if client_nonce:
+                self.used_nonces.add(client_nonce)
             
             # Validate client certificate
             try:
@@ -267,13 +288,26 @@ class SecureChatServer:
             
             # Verify sequence number (replay protection)
             last_seq = conn_state.get('last_seq', 0)
-            if chat_msg.seqno <= last_seq:
+            seq_key = f"{conn_state.get('username', 'unknown')}_{chat_msg.seqno}"
+            
+            # Check both per-connection and global sequence tracking
+            if chat_msg.seqno <= last_seq or seq_key in self.used_sequences:
+                print(f"[SECURITY] MESSAGE REPLAY ATTACK DETECTED!")
+                print(f"  - Sequence number: {chat_msg.seqno}")
+                print(f"  - Last sequence: {last_seq}")
+                print(f"  - User: {conn_state.get('username', 'unknown')}")
+                print(f"  - Sequence key: {seq_key}")
+                print(f"  - Already used: {seq_key in self.used_sequences}")
+                
                 self._send_message(conn, {
                     "type": "status",
                     "status": "replay",
-                    "message": "Message replay detected"
+                    "message": "Message replay detected - sequence number violation"
                 })
                 return False
+            
+            # Add to global sequence tracking
+            self.used_sequences.add(seq_key)
             
             # Verify signature
             data_to_verify = f"{chat_msg.seqno}|{chat_msg.ts}|{chat_msg.ct}"
