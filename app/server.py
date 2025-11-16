@@ -44,8 +44,8 @@ class SecureChatServer:
         # Active connections
         self.active_connections: Dict[str, Dict[str, Any]] = {}
         
-        # Per-user sequence tracking (prevents replay per user)
-        self.user_sequences: Dict[str, int] = {}
+        # Per-session sequence tracking (prevents replay within each session)
+        self.session_sequences: Dict[str, set] = {}
         
         # Connection nonces (prevent replay of handshake)
         self.used_nonces: set = set()
@@ -292,16 +292,21 @@ class SecureChatServer:
             username = (conn_state.get('authenticated_user', {}).get('username') or 
                        conn_state.get('client_cert_fingerprint', 'unknown'))
             
-            # Per-user sequence tracking
-            user_last_seq = self.user_sequences.get(username, 0)
+            # Create session identifier (unique per connection)
+            client_id = conn_state.get('session_id', f"session_{id(conn_state)}")
+            conn_state['session_id'] = client_id
             
-            # Check sequence number - must be greater than last seen for this user
-            if chat_msg.seqno <= max(last_seq, user_last_seq):
+            # Initialize session sequence tracking if not exists
+            if client_id not in self.session_sequences:
+                self.session_sequences[client_id] = set()
+            
+            # Check for replay within this specific session
+            if chat_msg.seqno <= last_seq:
                 print(f"[SECURITY] MESSAGE REPLAY ATTACK DETECTED!")
                 print(f"  - Sequence number: {chat_msg.seqno}")
-                print(f"  - Connection last seq: {last_seq}")
-                print(f"  - User global last seq: {user_last_seq}")
+                print(f"  - Session last seq: {last_seq}")
                 print(f"  - User: {username}")
+                print(f"  - Session ID: {client_id}")
                 print(f"  - Connection phase: {conn_state.get('phase', 'unknown')}")
                 
                 self._send_message(conn, {
@@ -311,8 +316,23 @@ class SecureChatServer:
                 })
                 return False
             
-            # Update per-user sequence tracking
-            self.user_sequences[username] = chat_msg.seqno
+            # Check if this exact sequence number was used in this session before
+            seq_key = f"{username}_{chat_msg.seqno}"
+            if seq_key in self.session_sequences[client_id]:
+                print(f"[SECURITY] DUPLICATE MESSAGE DETECTED!")
+                print(f"  - Sequence number: {chat_msg.seqno}")
+                print(f"  - User: {username}")
+                print(f"  - Session ID: {client_id}")
+                
+                self._send_message(conn, {
+                    "type": "status",
+                    "status": "replay", 
+                    "message": "Duplicate message detected in session"
+                })
+                return False
+            
+            # Add to session sequence tracking
+            self.session_sequences[client_id].add(seq_key)
             
             # Verify signature
             data_to_verify = f"{chat_msg.seqno}|{chat_msg.ts}|{chat_msg.ct}"
@@ -499,6 +519,12 @@ class SecureChatServer:
             conn.close()
             if client_id in self.active_connections:
                 del self.active_connections[client_id]
+                
+            # Clean up session sequences
+            session_id = conn_state.get('session_id')
+            if session_id and session_id in self.session_sequences:
+                del self.session_sequences[session_id]
+                
             print(f"Client disconnected: {client_id}")
     
     def start(self):
