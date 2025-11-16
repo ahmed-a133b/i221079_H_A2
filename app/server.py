@@ -44,8 +44,8 @@ class SecureChatServer:
         # Active connections
         self.active_connections: Dict[str, Dict[str, Any]] = {}
         
-        # Global sequence tracking (persistent across connections)
-        self.used_sequences: set = set()
+        # Per-user sequence tracking (prevents replay per user)
+        self.user_sequences: Dict[str, int] = {}
         
         # Connection nonces (prevent replay of handshake)
         self.used_nonces: set = set()
@@ -288,16 +288,21 @@ class SecureChatServer:
             
             # Verify sequence number (replay protection)
             last_seq = conn_state.get('last_seq', 0)
-            seq_key = f"{conn_state.get('username', 'unknown')}_{chat_msg.seqno}"
+            # Try to get username from authenticated user or client cert fingerprint
+            username = (conn_state.get('authenticated_user', {}).get('username') or 
+                       conn_state.get('client_cert_fingerprint', 'unknown'))
             
-            # Check both per-connection and global sequence tracking
-            if chat_msg.seqno <= last_seq or seq_key in self.used_sequences:
+            # Per-user sequence tracking
+            user_last_seq = self.user_sequences.get(username, 0)
+            
+            # Check sequence number - must be greater than last seen for this user
+            if chat_msg.seqno <= max(last_seq, user_last_seq):
                 print(f"[SECURITY] MESSAGE REPLAY ATTACK DETECTED!")
                 print(f"  - Sequence number: {chat_msg.seqno}")
-                print(f"  - Last sequence: {last_seq}")
-                print(f"  - User: {conn_state.get('username', 'unknown')}")
-                print(f"  - Sequence key: {seq_key}")
-                print(f"  - Already used: {seq_key in self.used_sequences}")
+                print(f"  - Connection last seq: {last_seq}")
+                print(f"  - User global last seq: {user_last_seq}")
+                print(f"  - User: {username}")
+                print(f"  - Connection phase: {conn_state.get('phase', 'unknown')}")
                 
                 self._send_message(conn, {
                     "type": "status",
@@ -306,8 +311,8 @@ class SecureChatServer:
                 })
                 return False
             
-            # Add to global sequence tracking
-            self.used_sequences.add(seq_key)
+            # Update per-user sequence tracking
+            self.user_sequences[username] = chat_msg.seqno
             
             # Verify signature
             data_to_verify = f"{chat_msg.seqno}|{chat_msg.ts}|{chat_msg.ct}"
