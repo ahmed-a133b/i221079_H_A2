@@ -235,3 +235,28 @@ def extract_public_key_pem(cert_pem: str) -> str:
     ).decode('utf-8')
     
     return public_key_pem
+
+
+def load_private_key(key_pem: str, password: Optional[bytes] = None):
+    """
+    Load private key from PEM string.
+    
+    Args:
+        key_pem: Private key in PEM format
+        password: Optional password for encrypted keys
+        
+    Returns:
+        Private key object
+    """
+    try:
+        if isinstance(key_pem, str):
+            key_pem = key_pem.encode('utf-8')
+        
+        private_key = serialization.load_pem_private_key(
+            key_pem, 
+            password=password, 
+            backend=default_backend()
+        )
+        return private_key
+    except Exception as e:
+        raise CertificateValidationError(f"Failed to load private key: {e}")

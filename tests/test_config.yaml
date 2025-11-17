@@ -1,0 +1,70 @@
+# SecureChat Security Test Configuration
+# Each test scenario can be run independently with specific configurations
+
+test_scenarios:
+  invalid_certificate:
+    name: "Invalid Certificate Test"
+    description: "Test certificate validation with forged/self-signed/expired certificates"
+    server_config:
+      host: "localhost"
+      port: 8443
+      cert_path: "certs/server-cert.pem"
+      key_path: "certs/server-key.pem"
+      ca_path: "certs/ca-cert.pem"
+    client_configs:
+      - name: "forged_cert"
+        cert_path: "tests/certs/forged-client-cert.pem"
+        key_path: "tests/certs/forged-client-key.pem"
+        expected_result: "BAD_CERT"
+      - name: "self_signed"
+        cert_path: "tests/certs/self-signed-cert.pem"
+        key_path: "tests/certs/self-signed-key.pem"
+        expected_result: "BAD_CERT"
+      - name: "expired_cert"
+        cert_path: "tests/certs/expired-cert.pem"
+        key_path: "tests/certs/expired-key.pem"
+        expected_result: "BAD_CERT"
+    timeout: 30
+
+  tampering_test:
+    name: "Message Tampering Test"
+    description: "Test message integrity by flipping bits in ciphertext"
+    server_config:
+      host: "localhost"
+      port: 8444
+      cert_path: "certs/server-cert.pem"
+      key_path: "certs/server-key.pem"
+      ca_path: "certs/ca-cert.pem"
+    client_config:
+      cert_path: "certs/client-cert.pem"
+      key_path: "certs/client-key.pem"
+      username: "testuser"
+      email: "test@example.com"
+      password: "testpass123"
+    test_messages:
+      - "This is a test message for tampering"
+      - "Another message to verify integrity"
+    tampering_patterns:
+      - bit_flip: [0, 1, 2]  # Flip bits at these positions
+      - byte_corruption: [10, 20, 30]  # Corrupt bytes at these positions
+    expected_result: "SIG_FAIL"
+    timeout: 45
+
+
+
+# Global test settings
+global_config:
+  database:
+    reset_before_test: true
+    backup_before_test: false
+  logging:
+    level: "DEBUG"
+    capture_packets: true
+    packet_dir: "tests/packets"
+  cleanup:
+    remove_temp_files: true
+    preserve_logs: true
+    preserve_transcripts: true
+  network:
+    interface: "lo"  # For Linux
+    capture_filter: "port 844*"

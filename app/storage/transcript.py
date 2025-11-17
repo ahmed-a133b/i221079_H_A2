@@ -26,6 +26,8 @@ class TranscriptManager:
         # Load existing entries
         self._load_transcript()
     
+
+    
     def _load_transcript(self):
         """Load existing transcript entries from file."""
         if os.path.exists(self.filepath):
