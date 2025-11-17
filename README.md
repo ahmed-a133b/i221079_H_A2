@@ -1,5 +1,5 @@
 
-#CS-3002 Information Security Assignment 02 ~ SecureChat - PKI-Based Secure Messaging System
+## CS-3002 Information Security Assignment 02 - SecureChat - PKI-Based Secure Messaging System
 
 A secure chat application implementing PKI authentication, end-to-end encryption, and digital signatures for secure communications.
 
